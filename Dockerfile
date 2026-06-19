@@ -8,7 +8,9 @@ FROM base AS builder
 RUN cargo build --release --locked
 
 FROM base AS test
-RUN cargo test --locked
+RUN rustup override set stable && rustup component add llvm-tools-preview
+RUN cargo install cargo-llvm-cov
+RUN cargo llvm-cov test --locked --json --ignore-filename-regex '.*target/.*' > coverage-report.json
 
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
