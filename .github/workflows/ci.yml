@@ -50,6 +50,82 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+  rust-coverage:
+    name: Rust coverage
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          components: llvm-tools-preview
+
+      - name: Install cargo-llvm-cov
+        run: cargo install cargo-llvm-cov --locked
+
+      - name: Generate coverage report
+        run: cargo llvm-cov test --locked --ignore-filename-regex '.*target/.*' --json --output-file coverage.json
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.json
+          retention-days: 1
+
+  compare-coverage:
+    name: Compare coverage against main
+    needs: [build, rust-coverage, test]
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download PR coverage report
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-report
+
+      - name: Check out main branch
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          components: llvm-tools-preview
+
+      - name: Install cargo-llvm-cov
+        run: cargo install cargo-llvm-cov --locked
+
+      - name: Generate main coverage report
+        run: cargo llvm-cov test --locked --ignore-filename-regex '.*target/.*' --json --output-file main-coverage.json
+
+      - name: Install jq and bc
+        run: sudo apt-get update && sudo apt-get install -y jq bc
+
+      - name: Compare coverage
+        run: |
+          PR_COVERAGE=$(jq '.lines.percent.coveraged' coverage.json)
+          MAIN_COVERAGE=$(jq '.lines.percent.coveraged' main-coverage.json)
+
+          echo "PR branch coverage: ${PR_COVERAGE}%"
+          echo "Main branch coverage: ${MAIN_COVERAGE}%"
+
+          DROP=$(echo "${MAIN_COVERAGE} - ${PR_COVERAGE}" | bc -l)
+          THRESHOLD=$(echo "${DROP} > 0.5" | bc -l)
+
+          if [ "$THRESHOLD" = "1" ]; then
+            echo "::error::Coverage dropped by $(printf '%.2f' ${DROP})% (main: ${MAIN_COVERAGE}%, PR: ${PR_COVERAGE}%). Minimum 0.5% tolerance allowed."
+            exit 1
+          fi
+
+          echo "Coverage comparison passed (within 0.5% tolerance)"
+
   push:
     name: Push Docker image
     if: github.event_name == 'push'
