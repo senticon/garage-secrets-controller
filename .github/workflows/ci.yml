@@ -59,16 +59,16 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@nightly
         with:
-          toolchain: stable
+          toolchain: nightly-2025-03-10
           components: llvm-tools-preview
 
       - name: Install cargo-llvm-cov
         run: cargo install cargo-llvm-cov --locked
 
       - name: Generate coverage report
-        run: cargo llvm-cov test --locked --ignore-filename-regex '.*target/.*' --json --output-file coverage.json
+        run: cargo llvm-cov --json --output-file coverage.json test --locked --ignore-filename-regex '.*target/.*'
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
@@ -94,16 +94,16 @@ jobs:
           ref: main
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@nightly
         with:
-          toolchain: stable
+          toolchain: nightly-2025-03-10
           components: llvm-tools-preview
 
       - name: Install cargo-llvm-cov
         run: cargo install cargo-llvm-cov --locked
 
       - name: Generate main coverage report
-        run: cargo llvm-cov test --locked --ignore-filename-regex '.*target/.*' --json --output-file main-coverage.json
+        run: cargo llvm-cov --json --output-file main-coverage.json test --locked --ignore-filename-regex '.*target/.*'
 
       - name: Install jq and bc
         run: sudo apt-get update && sudo apt-get install -y jq bc
