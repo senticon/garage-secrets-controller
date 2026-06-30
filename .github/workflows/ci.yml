@@ -68,7 +68,7 @@ jobs:
         run: cargo install cargo-llvm-cov --locked
 
       - name: Generate coverage report
-        run: cargo llvm-cov --json --output-file coverage.json test --locked --ignore-filename-regex '.*target/.*'
+        run: cargo llvm-cov --json --output-path coverage.json test --locked --ignore-filename-regex '.*target/.*'
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
@@ -103,7 +103,7 @@ jobs:
         run: cargo install cargo-llvm-cov --locked
 
       - name: Generate main coverage report
-        run: cargo llvm-cov --json --output-file main-coverage.json test --locked --ignore-filename-regex '.*target/.*'
+        run: cargo llvm-cov --json --output-path main-coverage.json test --locked --ignore-filename-regex '.*target/.*'
 
       - name: Install jq and bc
         run: sudo apt-get update && sudo apt-get install -y jq bc
