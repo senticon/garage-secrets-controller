@@ -83,6 +83,11 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
+      - name: Download PR coverage report
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-report
+
       - name: Check out main branch
         uses: actions/checkout@v4
         with:
@@ -99,15 +104,10 @@ jobs:
         run: cargo install cargo-llvm-cov --locked
 
       - name: Generate main coverage report
-        run: cargo llvm-cov --json --output-path main-coverage.json test --locked --ignore-filename-regex '.*target/.*'
+        run: cd main && cargo llvm-cov --json --output-path ../main-coverage.json test --locked --ignore-filename-regex '.*target/.*'
 
       - name: Install jq and bc
         run: sudo apt-get update && sudo apt-get install -y jq bc
-
-      - name: Download PR coverage report
-        uses: actions/download-artifact@v4
-        with:
-          name: coverage-report
 
       - name: Compare coverage
         run: |
