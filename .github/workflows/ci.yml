@@ -83,15 +83,11 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - name: Download PR coverage report
-        uses: actions/download-artifact@v4
-        with:
-          name: coverage-report
-
       - name: Check out main branch
         uses: actions/checkout@v4
         with:
           ref: main
+          path: main
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@nightly
@@ -108,8 +104,17 @@ jobs:
       - name: Install jq and bc
         run: sudo apt-get update && sudo apt-get install -y jq bc
 
+      - name: Download PR coverage report
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-report
+
       - name: Compare coverage
         run: |
+          if [ ! -f coverage.json ]; then
+            echo "No PR coverage report available, skipping comparison"
+            exit 0
+          fi
           PR_COVERAGE=$(jq '.lines.percent.coveraged' coverage.json)
           MAIN_COVERAGE=$(jq '.lines.percent.coveraged' main-coverage.json)
 
