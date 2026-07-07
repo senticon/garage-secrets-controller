@@ -158,28 +158,29 @@ impl<K: KeyStorageProvider + Clone, G: GarageApi + Clone> Reconciler<K, G> {
 
         match lookup {
             KeyLookup::Single(existing) => {
-                warn!(key = %rec.name, access_key_id = %existing.access_key_id, path = %path, "key already exists in Garage; skipping reconciliation for this key record");
-                return Ok(());
+                warn!(key = %rec.name, access_key_id = %existing.access_key_id, path = %path, "key already exists in Garage; updating key record from existing key");
+                rec.access_key_id = Some(existing.access_key_id);
+                rec.secret_access_key = existing.secret_access_key;
             }
             KeyLookup::Multiple => {
                 warn!(key = %rec.name, path = %path, "multiple Garage keys match name; skipping reconciliation for this key record");
                 return Ok(());
             }
-            KeyLookup::None => {}
-        }
-
-        if self.dry_run {
-            info!(key = %rec.name, "dry-run create key");
-            rec.access_key_id = Some("dry-run-access-key-id".to_string());
-            rec.secret_access_key = Some("dry-run-secret-access-key".to_string());
-        } else {
-            let created = self
-                .garage
-                .create_key(&rec.name)
-                .await
-                .map_err(|e| AppError::Resource(format!("create key '{}': {e}", rec.name)))?;
-            rec.access_key_id = Some(created.access_key_id);
-            rec.secret_access_key = created.secret_access_key;
+            KeyLookup::None => {
+                if self.dry_run {
+                    info!(key = %rec.name, "dry-run create key");
+                    rec.access_key_id = Some("dry-run-access-key-id".to_string());
+                    rec.secret_access_key = Some("dry-run-secret-access-key".to_string());
+                } else {
+                    let created = self
+                        .garage
+                        .create_key(&rec.name)
+                        .await
+                        .map_err(|e| AppError::Resource(format!("create key '{}': {e}", rec.name)))?;
+                    rec.access_key_id = Some(created.access_key_id);
+                    rec.secret_access_key = created.secret_access_key;
+                }
+            }
         }
         rec.state = Some(DesiredState::Ready);
         rec.error_message = None;

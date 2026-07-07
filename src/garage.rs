@@ -19,6 +19,7 @@ pub struct Bucket {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct CreateBucketRequest<'a> {
     global_alias: &'a str,
 }
@@ -96,24 +97,24 @@ impl GarageClient {
     }
 
     pub async fn get_status(&self) -> Result<serde_json::Value> {
-        let resp = self.req(reqwest::Method::GET, "/v1/status").send().await?;
+        let resp = self.req(reqwest::Method::GET, "/v2/GetClusterStatus").send().await?;
         let status = resp.status();
         let body = resp.text().await.unwrap_or_default();
-        ensure_success("/v1/status", status, &body)?;
-        parse_json_value("/v1/status", &body)
+        ensure_success("/v2/GetClusterStatus", status, &body)?;
+        parse_json_value("/v2/GetClusterStatus", &body)
     }
 
     pub async fn create_bucket(&self, name: &str) -> Result<Bucket> {
         let resp = self
-            .req(reqwest::Method::POST, "/v1/bucket")
+            .req(reqwest::Method::POST, "/v2/CreateBucket")
             .json(&CreateBucketRequest { global_alias: name })
             .send()
             .await?;
         let status = resp.status();
         let body = resp.text().await.unwrap_or_default();
-        ensure_success("/v1/bucket", status, &body)?;
+        ensure_success("/v2/CreateBucket", status, &body)?;
         if !body.trim().is_empty() {
-            let v: Value = parse_json_value("/v1/bucket", &body)?;
+            let v: Value = parse_json_value("/v2/CreateBucket", &body)?;
             if let Some(bucket) = bucket_from_value(&v) {
                 return Ok(bucket);
             }
@@ -130,7 +131,7 @@ impl GarageClient {
 
     pub async fn get_bucket_by_alias_or_name(&self, name: &str) -> Result<Option<Bucket>> {
         let resp = self
-            .req(reqwest::Method::GET, "/v1/bucket")
+            .req(reqwest::Method::GET, "/v2/GetBucketInfo")
             .query(&[("search", name)])
             .send()
             .await?;
@@ -139,14 +140,14 @@ impl GarageClient {
         if status == reqwest::StatusCode::NOT_FOUND {
             return Ok(None);
         }
-        ensure_success("/v1/bucket", status, &body)?;
-        let v: Value = parse_json_value("/v1/bucket", &body)?;
+        ensure_success("/v2/GetBucketInfo", status, &body)?;
+        let v: Value = parse_json_value("/v2/GetBucketInfo", &body)?;
         Ok(bucket_from_value(&v))
     }
 
     pub async fn create_key(&self, name: &str) -> Result<GarageKey> {
         let resp = self
-            .req(reqwest::Method::POST, "/v1/key")
+            .req(reqwest::Method::POST, "/v2/CreateKey")
             .json(&CreateKeyRequest { name })
             .send()
             .await?;
@@ -154,16 +155,16 @@ impl GarageClient {
         let status = resp.status();
         let body = resp.text().await.unwrap_or_default();
 
-        ensure_success("/v1/key", status, &body)?;
+        ensure_success("/v2/CreateKey", status, &body)?;
 
         if !body.trim().is_empty() {
-            let v: Value = parse_json_value("/v1/key", &body)?;
+            let v: Value = parse_json_value("/v2/CreateKey", &body)?;
             if let Some(key) = key_from_value(&v) {
                 return Ok(key);
             }
         }
 
-        info!(endpoint = "/v1/key", name = %name);
+        info!(endpoint = "/v2/CreateKey", name = %name);
         match self.lookup_key_by_name(name).await? {
             KeyLookup::Single(k) => Ok(k),
             KeyLookup::None => Err(AppError::Resource(format!(
@@ -176,52 +177,23 @@ impl GarageClient {
     }
 
     pub async fn lookup_key_by_name(&self, name: &str) -> Result<KeyLookup> {
-        let all = self.list_keys().await?;
-        let matches: Vec<GarageKey> = all
-            .into_iter()
-            .filter(|k| k.name.as_deref() == Some(name))
-            .collect();
-
-        match matches.len() {
-            0 => Ok(KeyLookup::None),
-            1 => Ok(KeyLookup::Single(
-                matches.into_iter().next().expect("single"),
-            )),
-            _ => Ok(KeyLookup::Multiple),
-        }
-    }
-
-    async fn list_keys(&self) -> Result<Vec<GarageKey>> {
-        let resp = self.req(reqwest::Method::GET, "/v1/key").send().await?;
+        let resp = self
+            .req(reqwest::Method::GET, "/v2/GetKeyInfo")
+            .query(&[("search", name)])
+            .send()
+            .await?;
         let status = resp.status();
         let body = resp.text().await.unwrap_or_default();
-        ensure_success("/v1/key", status, &body)?;
+        if status == reqwest::StatusCode::NOT_FOUND {
+            return Ok(KeyLookup::None);
+        }
+        ensure_success("/v2/GetKeyInfo", status, &body)?;
 
-        let v: Value = parse_json_value("/v1/key", &body)?;
-        if let Some(arr) = v.as_array() {
-            return arr
-                .iter()
-                .map(|item| {
-                    key_from_value(item).ok_or_else(|| {
-                        AppError::Resource("unable to parse entry from /v1/key list".to_string())
-                    })
-                })
-                .collect();
+        let v: Value = parse_json_value("/v2/GetKeyInfo", &body)?;
+        if let Some(key) = key_from_value(&v) {
+            return Ok(KeyLookup::Single(key));
         }
-        if let Some(items) = v.get("items").and_then(Value::as_array) {
-            return items
-                .iter()
-                .map(|item| {
-                    key_from_value(item).ok_or_else(|| {
-                        AppError::Resource("unable to parse entry from /v1/key items".to_string())
-                    })
-                })
-                .collect();
-        }
-        if let Some(k) = key_from_value(&v) {
-            return Ok(vec![k]);
-        }
-        Ok(Vec::new())
+        Ok(KeyLookup::None)
     }
 
     pub async fn allow_bucket_key(
@@ -233,7 +205,7 @@ impl GarageClient {
         owner: bool,
     ) -> Result<()> {
         let resp = self
-            .req(reqwest::Method::POST, "/v1/bucket/allow")
+            .req(reqwest::Method::POST, "/v2/AllowBucketKey")
             .json(&AllowRequest {
                 bucket_id: bucket_id.to_string(),
                 access_key_id: access_key_id.to_string(),
@@ -243,8 +215,8 @@ impl GarageClient {
             .await?;
         let status = resp.status();
         let body = resp.text().await.unwrap_or_default();
-        ensure_success("/v1/bucket/allow", status, &body)?;
-        info!(endpoint = "/v1/bucket/allow", bucket_id = %bucket_id, access_key_id = %access_key_id, read, write, owner);
+        ensure_success("/v2/AllowBucketKey", status, &body)?;
+        info!(endpoint = "/v2/AllowBucketKey", bucket_id = %bucket_id, access_key_id = %access_key_id, read, write, owner);
         Ok(())
     }
 }
@@ -314,41 +286,25 @@ fn first_obj(v: &Value) -> Option<&Value> {
 
 fn bucket_from_value(v: &Value) -> Option<Bucket> {
     let obj = first_obj(v)?;
-    let id = obj
-        .get("id")
-        .and_then(Value::as_str)
-        .or_else(|| obj.get("bucket_id").and_then(Value::as_str))?
-        .to_string();
+    let id = obj.get("id")?.as_str()?.to_string();
     Some(Bucket { id })
 }
 
 fn key_from_value(v: &Value) -> Option<GarageKey> {
     let obj = first_obj(v)?;
     let access_key_id = obj
-        .get("access_key_id")
+        .get("accessKeyId")
         .and_then(Value::as_str)
-        .or_else(|| obj.get("accessKeyId").and_then(Value::as_str))
         .or_else(|| obj.get("id").and_then(Value::as_str))?
         .to_string();
     let secret_access_key = obj
-        .get("secret_access_key")
+        .get("secretAccessKey")
         .and_then(Value::as_str)
-        .or_else(|| obj.get("secretAccessKey").and_then(Value::as_str))
-        .map(ToString::to_string)
-        .or_else(|| {
-            obj.get("secret_key")
-                .and_then(Value::as_str)
-                .map(ToString::to_string)
-        });
+        .map(ToString::to_string);
     let name = obj
         .get("name")
         .and_then(Value::as_str)
-        .map(ToString::to_string)
-        .or_else(|| {
-            obj.get("key_name")
-                .and_then(Value::as_str)
-                .map(ToString::to_string)
-        });
+        .map(ToString::to_string);
     Some(GarageKey {
         access_key_id,
         name,

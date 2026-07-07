@@ -96,8 +96,8 @@ async fn start_mock_server(responses: Vec<MockResponse>) -> (String, Arc<Mutex<V
 
 #[test]
 fn parse_json_value_handles_success_and_error() {
-    assert!(parse_json_value("/v1/test", r#"{"ok":true}"#).is_ok());
-    assert!(parse_json_value("/v1/test", "not-json").is_err());
+    assert!(parse_json_value("/v2/test", r#"{"ok":true}"#).is_ok());
+    assert!(parse_json_value("/v2/test", "not-json").is_err());
 }
 
 #[test]
@@ -105,10 +105,7 @@ fn helpers_parse_bucket_and_key_shapes() {
     let obj = serde_json::json!({"id": "b1"});
     assert_eq!(bucket_from_value(&obj).expect("bucket").id, "b1");
 
-    let arr = serde_json::json!([{"bucket_id": "b2"}]);
-    assert_eq!(bucket_from_value(&arr).expect("bucket").id, "b2");
-
-    let key_json = serde_json::json!([{"accessKeyId": "k1", "secret_key": "s1", "key_name": "n1"}]);
+    let key_json = serde_json::json!({"accessKeyId": "k1", "secretAccessKey": "s1", "name": "n1"});
     let key = key_from_value(&key_json).expect("key");
     assert_eq!(key.access_key_id, "k1");
     assert_eq!(key.secret_access_key.as_deref(), Some("s1"));
@@ -158,11 +155,7 @@ async fn create_bucket_covers_direct_and_fallback_paths() {
     let (base_fallback, _) = start_mock_server(vec![
         MockResponse {
             status: 200,
-            body: "{}".to_string(),
-        },
-        MockResponse {
-            status: 200,
-            body: "[{\"bucket_id\":\"bucket-fallback\"}]".to_string(),
+            body: "{\"id\":\"bucket-fallback\"}".to_string(),
         },
     ])
     .await;
@@ -193,43 +186,27 @@ async fn create_bucket_covers_direct_and_fallback_paths() {
 async fn create_key_lookup_and_allow_bucket_key() {
     let (base_direct, _) = start_mock_server(vec![MockResponse {
         status: 200,
-        body: "{\"access_key_id\":\"k-direct\",\"name\":\"n\"}".to_string(),
+        body: "{\"accessKeyId\":\"k-direct\",\"name\":\"n\"}".to_string(),
     }])
     .await;
     let client_direct = GarageClient::new(base_direct, "token".to_string());
     let direct = client_direct.create_key("n").await.expect("direct key");
     assert_eq!(direct.access_key_id, "k-direct");
 
-    let (base_single, _) = start_mock_server(vec![
+    let (base_none, _) = start_mock_server(vec![
         MockResponse {
             status: 200,
             body: "{}".to_string(),
         },
         MockResponse {
-            status: 200,
-            body: "[{\"access_key_id\":\"k1\",\"name\":\"target\"}]".to_string(),
+            status: 404,
+            body: "not found".to_string(),
         },
     ])
     .await;
-    let client_single = GarageClient::new(base_single, "token".to_string());
-    let single = client_single.create_key("target").await.expect("single lookup");
-    assert_eq!(single.access_key_id, "k1");
-
-    let (base_multiple, _) = start_mock_server(vec![
-        MockResponse {
-            status: 200,
-            body: "{}".to_string(),
-        },
-        MockResponse {
-            status: 200,
-            body: "[{\"id\":\"a\",\"name\":\"dup\"},{\"id\":\"b\",\"name\":\"dup\"}]"
-                .to_string(),
-        },
-    ])
-    .await;
-    let client_multiple = GarageClient::new(base_multiple, "token".to_string());
-    let multiple = client_multiple.create_key("dup").await;
-    assert!(matches!(multiple, Err(AppError::Resource(msg)) if msg.contains("multiple matches")));
+    let client_none = GarageClient::new(base_none, "token".to_string());
+    let none = client_none.create_key("ghost").await;
+    assert!(matches!(none, Err(AppError::Resource(msg)) if msg.contains("lookup failed")));
 
     let (base_allow, requests) = start_mock_server(vec![MockResponse {
         status: 200,
@@ -243,7 +220,7 @@ async fn create_key_lookup_and_allow_bucket_key() {
         .expect("allow ok");
     let reqs = requests.lock().await;
     let req = reqs.first().expect("recorded request");
-    assert!(req.start_line.contains("POST /v1/bucket/allow HTTP/1.1"));
+    assert!(req.start_line.contains("POST /v2/AllowBucketKey HTTP/1.1"));
     assert!(req.headers.to_lowercase().contains("authorization: bearer token-123"));
     assert!(req.body.contains("\"bucketId\":\"bucket-x\""));
     assert!(req.body.contains("\"accessKeyId\":\"key-x\""));

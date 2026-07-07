@@ -204,7 +204,7 @@ async fn reconcile_once_creates_missing_bucket_key_and_grant() {
 }
 
 #[tokio::test]
-async fn existing_key_is_skipped() {
+async fn existing_key_is_updated_not_duplicated() {
     let bao = MockKeyStore::default();
     {
         let mut state = bao.inner.lock().expect("lock");
@@ -230,7 +230,12 @@ async fn existing_key_is_skipped() {
     r.reconcile_keys().await.expect("keys");
 
     assert!(garage.inner.lock().expect("lock").created_keys.is_empty());
-    assert!(bao.inner.lock().expect("lock").writes.is_empty());
+    let writes = &bao.inner.lock().expect("lock").writes;
+    assert_eq!(writes.len(), 1);
+    let (path, updated) = &writes[0];
+    assert_eq!(path, "controller/keys/app");
+    assert_eq!(updated["state"], "ready");
+    assert_eq!(updated["access_key_id"], "existing-ak");
 }
 
 #[tokio::test]
