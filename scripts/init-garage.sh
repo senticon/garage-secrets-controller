@@ -27,7 +27,7 @@ done
 garage_status() {
   curl -fsS \
     -H "Authorization: Bearer ${GARAGE_ADMIN_TOKEN}" \
-    "${GARAGE_ADMIN_URL}/v1/status"
+    "${GARAGE_ADMIN_URL}/v2/GetClusterHealth"
 }
 
 wait_admin() {
@@ -95,7 +95,7 @@ EOF
 }
 
 echo "Initializing Garage with defaults: zone=${ZONE}, capacity=${CAPACITY}, timeout=${TIMEOUT_SECONDS}s"
-wait_admin
+#wait_admin
 bootstrap_layout
 wait_bucket_api
 

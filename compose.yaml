@@ -1,6 +1,6 @@
 services:
   garage:
-    image: dxflrs/garage:b6b18427a5fc9b5b7540cf6d0843afd5cf7f9b56
+    image: dxflrs/garage:v2.3.0
     command: ['/garage', 'server']
     volumes:
       - ./config/garage.toml:/etc/garage.toml:ro

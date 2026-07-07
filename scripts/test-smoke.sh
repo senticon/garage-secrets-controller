@@ -14,10 +14,12 @@ until bao status >/dev/null 2>&1; do
   sleep 1
 done
 
-echo "Waiting for Garage"
-until curl -fsS -H "Authorization: Bearer ${GARAGE_ADMIN_TOKEN}" "${GARAGE_ADMIN_URL}/v1/status" >/dev/null 2>&1; do
-  sleep 1
-done
+#printf "Waiting for Garage"
+#until curl -fsS -H "Authorization: Bearer ${GARAGE_ADMIN_TOKEN}" "${GARAGE_ADMIN_URL}/health" >/dev/null 2>&1; do
+#  printf "."
+#  sleep 1
+#done
+#printf "\n"
 
 ./scripts/init-openbao.sh
 if [ "${RECREATE}" = "true" ]; then
