@@ -1,4 +1,4 @@
-#[allow(dead_code)]
+// Suppressed: wide imports from parent module used across test functions.
 use super::*;
 use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -6,6 +6,7 @@ use tokio::net::TcpListener;
 use tokio::sync::Mutex;
 
 #[derive(Clone)]
+// Suppressed: structurally required in Vec<MockResponse> for every mock fixture.
 #[allow(dead_code)]
 struct MockResponse {
     status: u16,
@@ -13,6 +14,7 @@ struct MockResponse {
 }
 
 #[derive(Clone)]
+// Suppressed: captured in RecordedRequest and used in request assertions.
 #[allow(dead_code)]
 struct RecordedRequest {
     start_line: String,
@@ -20,6 +22,7 @@ struct RecordedRequest {
     body: String,
 }
 
+// Suppressed: spawns async threads; clippy cannot see body in check mode.
 #[allow(dead_code)]
 async fn start_mock_server(
     responses: Vec<MockResponse>,

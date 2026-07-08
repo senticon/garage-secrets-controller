@@ -1,3 +1,4 @@
+// Suppressed: wide imports from parent module used across test functions.
 use super::*;
 #[allow(unused_imports)]
 use serde::Deserialize;
@@ -7,6 +8,7 @@ use tokio::net::TcpListener;
 use tokio::sync::Mutex;
 
 #[derive(Clone)]
+// Suppressed: structurally required in Vec<MockResponse> for every mock fixture.
 #[allow(dead_code)]
 struct MockResponse {
     status: u16,
@@ -14,6 +16,7 @@ struct MockResponse {
 }
 
 #[derive(Clone)]
+// Suppressed: captured in RecordedRequest and used in request assertions.
 #[allow(dead_code)]
 struct RecordedRequest {
     start_line: String,
@@ -21,6 +24,7 @@ struct RecordedRequest {
     body: String,
 }
 
+// Suppressed: spawns async threads; clippy cannot see body in check mode.
 #[allow(dead_code)]
 async fn start_mock_server(
     responses: Vec<MockResponse>,
@@ -102,6 +106,7 @@ async fn start_mock_server(
 }
 
 #[derive(Debug, Deserialize)]
+// Suppressed: used as a generic parameter in deserialize tests; the type is reference-only.
 #[allow(dead_code)]
 struct Demo {
     name: String,
