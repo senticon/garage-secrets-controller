@@ -7,7 +7,8 @@ export GARAGE_ADMIN_URL="${GARAGE_ADMIN_URL:-http://127.0.0.1:3903}"
 export GARAGE_ADMIN_TOKEN="${GARAGE_ADMIN_TOKEN:-dev-garage-admin-token}"
 RECREATE="${RECREATE:-false}"
 
-docker compose up -d --build openbao garage
+docker compose up -d openbao garage
+docker compose build
 
 echo "Waiting for OpenBao"
 until bao status >/dev/null 2>&1; do
@@ -32,6 +33,8 @@ check_ns() {
     export BAO_NAMESPACE="${ns}"
   fi
 
+  echo "Checking namespace ${ns}"
+
   local bucket_state key_state grant_state access_key_id secret_access_key
   bucket_state="$(bao kv get -format=json kv/${BAO_PREFIX:-garage}/buckets/${GARAGE_BUCKET_NAME:-my-bucket} | jq -r '.data.data.state')"
   key_state="$(bao kv get -format=json kv/${BAO_PREFIX:-garage}/keys/${GARAGE_KEY_NAME:-my-app-key} | jq -r '.data.data.state')"
@@ -48,11 +51,12 @@ check_ns() {
   echo "Namespace '${ns:-root}' smoke test passed"
   echo "Generated key id: ${access_key_id}"
   echo "Generated secret: ***masked***"
+  echo "Done checking namespace ${ns}"
 }
 
 check_ns "_"
 
-for ns in default test; do
+for ns in test; do
   export BAO_NAMESPACE="${ns}"
   check_ns "${ns}"
 done

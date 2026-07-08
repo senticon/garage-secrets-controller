@@ -1075,7 +1075,7 @@ async fn multi_namespace_list_multi_merges_entries() {
             vec!["b2".to_string(), "b3".to_string()],
         );
     }
-    let r = reconciler(key_store.clone(), MockGarage::default());
+    _ = reconciler(key_store.clone(), MockGarage::default());
     let namespaces = vec!["ns1".to_string(), "ns2".to_string()];
 
     let keys = key_store
@@ -1101,7 +1101,7 @@ async fn multi_namespace_empty_list_returns_root() {
             .list_map
             .insert("controller/buckets".to_string(), vec!["x".to_string()]);
     }
-    let r = reconciler(key_store.clone(), MockGarage::default());
+    _ = reconciler(key_store.clone(), MockGarage::default());
 
     let keys = key_store
         .list_multi("controller/buckets", &[])

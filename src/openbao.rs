@@ -4,7 +4,7 @@ use serde_json::Value;
 use tracing::{trace, warn};
 
 use crate::error::{AppError, Result};
-use crate::key_storage::{KeyStorageMultiProvider, KeyStorageProvider};
+use crate::key_storage::KeyStorageProvider;
 
 mod tests;
 
@@ -136,7 +136,7 @@ impl KeyStorageProvider for OpenBaoClient {
 mod multimap {
     use std::collections::HashMap;
 
-    use crate::error::{AppError, Result};
+    use crate::error::Result;
     use crate::key_storage::KeyStorageMultiProvider;
 
     #[async_trait::async_trait]

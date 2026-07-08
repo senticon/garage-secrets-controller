@@ -27,10 +27,23 @@ done
 # Determine which namespaces to target
 ns_list=()
 if [ -z "${BAO_NAMESPACE}" ]; then
-  ns_list=("_" "default" "test")
+  ns_list=("_" "test")
 else
   ns_list=("${BAO_NAMESPACE}")
 fi
+
+ensure_namespace_kv() {
+  local ns="$1"
+  local ns_flag=""
+  if [ -n "${ns}" ] && [ "${ns}" != "_" ]; then
+    ns_flag="-namespace=${ns}"
+  fi
+
+  if ! bao secrets list -format=json ${ns_flag} 2>/dev/null | jq -e '."kv/"' >/dev/null 2>&1; then
+    echo "Creating KV engine in ${ns:-root} namespace"
+    bao secrets enable -path=kv -namespace="${ns}" kv-v2 >/dev/null 2>&1
+  fi
+}
 
 seed_ns() {
   local ns="$1"
@@ -38,6 +51,8 @@ seed_ns() {
   if [ -n "${ns}" ] && [ "${ns}" != "_" ]; then
     ns_flag="-namespace=${ns}"
   fi
+
+  ensure_namespace_kv "${ns}"
 
   if [ "${RECREATE}" = "true" ]; then
     rm -f /dev/null
@@ -48,19 +63,19 @@ seed_ns() {
   fi
 
   local kv_path="kv/${PREFIX}/buckets/${BUCKET_NAME}"
-  bao kv put "${kv_path}" ${ns_flag} \
+  bao kv put ${ns_flag} "${kv_path}" \
     name="${BUCKET_NAME}" \
     state=requested
 
   kv_path="kv/${PREFIX}/keys/${KEY_NAME}"
-  bao kv put "${kv_path}" ${ns_flag} \
+  bao kv put ${ns_flag} "${kv_path}" \
     name="${KEY_NAME}" \
     access_key_id= \
     secret_access_key= \
     state=requested
 
   kv_path="kv/${PREFIX}/grants/${GRANT_NAME}"
-  bao kv put "${kv_path}" ${ns_flag} \
+  bao kv put ${ns_flag} "${kv_path}" \
     key="${KEY_NAME}" \
     bucket="${BUCKET_NAME}" \
     read=true \
@@ -68,6 +83,9 @@ seed_ns() {
     owner=false \
     state=requested
 }
+
+# Ensure root KV engine exists
+ensure_namespace_kv "_"
 
 echo "Seeding desired records"
 for ns in "${ns_list[@]}"; do

@@ -33,15 +33,14 @@ else
   roots_append="true"
 fi
 
-# Enable KV in default and test namespaces
-for ns in default test; do
-  if kv_mounted_at "${ns}"; then
-    echo "KV mount kv/ already enabled in ${ns} namespace"
-  else
-    echo "Enabling KV v2 in ${ns} namespace"
-    bao secrets enable -path=kv -namespace="${ns}" kv-v2
-  fi
-done
+# Enable KV in test namespace (default is usually unnecessary for dev)
+if kv_mounted_at "test"; then
+  echo "KV mount kv/ already enabled in test namespace"
+else
+  echo "Enabling KV v2 in test namespace"
+  bao namespace create "test"
+  bao secrets enable -path=kv -namespace="test" kv-v2
+fi
 
 if [ "${roots_append}" = "true" ] && ! kv_mounted_at ""; then
   echo "Enabling KV v2 at kv/ (auto-mode)"
@@ -59,7 +58,7 @@ path "kv/metadata/garage/*" {
 }
 EOF
 else
-  cat <<EOF | bao policy write garage-controller -namespace="${BAO_NAMESPACE}" - >/dev/null
+  cat <<EOF | bao policy write -namespace="${BAO_NAMESPACE}" garage-controller - >/dev/null
 path "kv/data/garage/*" {
   capabilities = ["create", "read", "update", "patch", "list"]
 }
