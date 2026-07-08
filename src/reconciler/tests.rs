@@ -1,6 +1,6 @@
 use super::*;
 use crate::garage::{GarageApi, GarageKey};
-use crate::key_storage::KeyStorageProvider;
+use crate::key_storage::{KeyStorageMultiProvider, KeyStorageProvider};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
@@ -45,6 +45,37 @@ impl KeyStorageProvider for MockKeyStore {
         inner.writes.push((path.to_string(), data.clone()));
         inner.secrets.insert(path.to_string(), data.clone());
         Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl KeyStorageMultiProvider for MockKeyStore {
+    async fn list_multi(&self, path: &str, namespaces: &[String]) -> Result<Vec<String>> {
+        let inner = self.inner.lock().expect("lock");
+        let mut keys = HashMap::new();
+        if namespaces.is_empty() {
+            if let Some(msg) = inner.list_errors.get(path) {
+                return Err(AppError::Resource(msg.clone()));
+            }
+            if let Some(found) = inner.list_map.get(path) {
+                for k in found {
+                    keys.insert(k.clone(), true);
+                }
+            }
+        } else {
+            for ns in namespaces {
+                let namespaced = format!("{}/{}", ns, path);
+                if let Some(msg) = inner.list_errors.get(&namespaced) {
+                    return Err(AppError::Resource(msg.clone()));
+                }
+                if let Some(found) = inner.list_map.get(&namespaced) {
+                    for k in found {
+                        keys.insert(k.clone(), true);
+                    }
+                }
+            }
+        }
+        Ok(keys.into_keys().collect())
     }
 }
 
@@ -145,7 +176,8 @@ fn reconciler(key_store: MockKeyStore, garage: MockGarage) -> Reconciler<MockKey
     Reconciler {
         key_store,
         garage,
-        prefix: "controller".to_string(),
+        bao_prefix: "controller".to_string(),
+        namespaces: Vec::new(),
         dry_run: false,
     }
 }
@@ -1027,4 +1059,66 @@ async fn empty_path_final_segments_report_inference_errors() {
     assert!(bucket_err.to_string().contains("cannot infer bucket name"));
     assert!(key_err.to_string().contains("cannot infer key name"));
     assert!(grant_err.to_string().contains("cannot infer grant fields"));
+}
+
+#[tokio::test]
+async fn multi_namespace_list_multi_merges_entries() {
+    let key_store = MockKeyStore::default();
+    {
+        let mut state = key_store.inner.lock().expect("lock");
+        state.list_map.insert(
+            "ns1/controller/buckets".to_string(),
+            vec!["b1".to_string(), "b2".to_string()],
+        );
+        state.list_map.insert(
+            "ns2/controller/buckets".to_string(),
+            vec!["b2".to_string(), "b3".to_string()],
+        );
+    }
+    let r = reconciler(key_store.clone(), MockGarage::default());
+    let namespaces = vec!["ns1".to_string(), "ns2".to_string()];
+
+    let keys = key_store
+        .list_multi("controller/buckets", &namespaces)
+        .await
+        .expect("multi list");
+
+    assert_eq!(keys.len(), 3);
+    let mut sorted = keys.clone();
+    sorted.sort();
+    assert_eq!(
+        sorted,
+        vec!["b1".to_string(), "b2".to_string(), "b3".to_string()]
+    );
+}
+
+#[tokio::test]
+async fn multi_namespace_empty_list_returns_root() {
+    let key_store = MockKeyStore::default();
+    {
+        let mut state = key_store.inner.lock().expect("lock");
+        state
+            .list_map
+            .insert("controller/buckets".to_string(), vec!["x".to_string()]);
+    }
+    let r = reconciler(key_store.clone(), MockGarage::default());
+
+    let keys = key_store
+        .list_multi("controller/buckets", &[])
+        .await
+        .expect("multi list");
+
+    assert_eq!(keys, vec!["x".to_string()]);
+}
+
+#[tokio::test]
+async fn all_path_prefix_named_namespace() {
+    let paths = super::all_path(&["custo-ns".to_string()], "garage/buckets/my-bucket");
+    assert_eq!(paths, "custo-ns/garage/buckets/my-bucket");
+}
+
+#[tokio::test]
+async fn all_path_empty_namespace_original_path() {
+    let paths = super::all_path(&[], "garage/buckets/my-bucket");
+    assert_eq!(paths, "garage/buckets/my-bucket");
 }

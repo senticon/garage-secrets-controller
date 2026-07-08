@@ -18,6 +18,9 @@ pub struct Config {
     #[arg(long, env = "BAO_PREFIX", default_value = "garage")]
     pub bao_prefix: String,
 
+    #[arg(long, env = "BAO_NAMESPACE", default_value = "")]
+    pub bao_namespace: String,
+
     #[arg(long, env = "GARAGE_ADMIN_URL", default_value = "http://garage:3903")]
     pub garage_admin_url: String,
 

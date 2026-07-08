@@ -4,18 +4,21 @@ use tracing::{error, info, warn};
 
 use crate::error::{AppError, Result};
 use crate::garage::{Bucket, GarageApi, KeyLookup};
-use crate::key_storage::KeyStorageProvider;
+use crate::key_storage::{KeyStorageMultiProvider, KeyStorageProvider};
 use crate::model::{is_requested, BucketRecord, DesiredState, GrantRecord, KeyRecord};
 
 #[derive(Clone)]
 pub struct Reconciler<K: KeyStorageProvider + Clone, G: GarageApi + Clone> {
     pub key_store: K,
     pub garage: G,
-    pub prefix: String,
+    pub bao_prefix: String,
+    pub namespaces: Vec<String>,
     pub dry_run: bool,
 }
 
-impl<K: KeyStorageProvider + Clone, G: GarageApi + Clone> Reconciler<K, G> {
+impl<K: KeyStorageProvider + KeyStorageMultiProvider + Clone, G: GarageApi + Clone>
+    Reconciler<K, G>
+{
     pub async fn reconcile_once(&self) -> Result<()> {
         let _ = self.garage.get_status().await?;
         self.reconcile_buckets().await?;
@@ -27,10 +30,13 @@ impl<K: KeyStorageProvider + Clone, G: GarageApi + Clone> Reconciler<K, G> {
     async fn reconcile_buckets(&self) -> Result<()> {
         let entries = self
             .key_store
-            .list(&format!("{}/buckets", self.prefix))
+            .list_multi(&format!("{}/buckets", self.bao_prefix), &self.namespaces)
             .await?;
         for name in entries {
-            let path = format!("{}/buckets/{}", self.prefix, name.trim_end_matches('/'));
+            let path = all_path(
+                &self.namespaces,
+                &format!("{}/buckets/{}", self.bao_prefix, name.trim_end_matches('/')),
+            );
             if let Err(err) = self.reconcile_bucket_path(&path).await {
                 error!(path = %path, error = %err, "bucket reconcile failed");
                 self.mark_error(&path, err).await?;
@@ -105,10 +111,13 @@ impl<K: KeyStorageProvider + Clone, G: GarageApi + Clone> Reconciler<K, G> {
     async fn reconcile_keys(&self) -> Result<()> {
         let entries = self
             .key_store
-            .list(&format!("{}/keys", self.prefix))
+            .list_multi(&format!("{}/keys", self.bao_prefix), &self.namespaces)
             .await?;
         for name in entries {
-            let path = format!("{}/keys/{}", self.prefix, name.trim_end_matches('/'));
+            let path = all_path(
+                &self.namespaces,
+                &format!("{}/keys/{}", self.bao_prefix, name.trim_end_matches('/')),
+            );
             if let Err(err) = self.reconcile_key_path(&path).await {
                 error!(path = %path, error = %err, "key reconcile failed");
                 self.mark_error(&path, err).await?;
@@ -172,11 +181,9 @@ impl<K: KeyStorageProvider + Clone, G: GarageApi + Clone> Reconciler<K, G> {
                     rec.access_key_id = Some("dry-run-access-key-id".to_string());
                     rec.secret_access_key = Some("dry-run-secret-access-key".to_string());
                 } else {
-                    let created = self
-                        .garage
-                        .create_key(&rec.name)
-                        .await
-                        .map_err(|e| AppError::Resource(format!("create key '{}': {e}", rec.name)))?;
+                    let created = self.garage.create_key(&rec.name).await.map_err(|e| {
+                        AppError::Resource(format!("create key '{}': {e}", rec.name))
+                    })?;
                     rec.access_key_id = Some(created.access_key_id);
                     rec.secret_access_key = created.secret_access_key;
                 }
@@ -198,10 +205,13 @@ impl<K: KeyStorageProvider + Clone, G: GarageApi + Clone> Reconciler<K, G> {
     async fn reconcile_grants(&self) -> Result<()> {
         let entries = self
             .key_store
-            .list(&format!("{}/grants", self.prefix))
+            .list_multi(&format!("{}/grants", self.bao_prefix), &self.namespaces)
             .await?;
         for name in entries {
-            let path = format!("{}/grants/{}", self.prefix, name.trim_end_matches('/'));
+            let path = all_path(
+                &self.namespaces,
+                &format!("{}/grants/{}", self.bao_prefix, name.trim_end_matches('/')),
+            );
             if let Err(err) = self.reconcile_grant_path(&path).await {
                 error!(path = %path, error = %err, "grant reconcile failed");
                 self.mark_error(&path, err).await?;
@@ -326,3 +336,10 @@ impl<K: KeyStorageProvider + Clone, G: GarageApi + Clone> Reconciler<K, G> {
 
 #[cfg(test)]
 mod tests;
+
+fn all_path(namespaces: &[String], path: &str) -> String {
+    match namespaces.first() {
+        Some(ns) if !ns.is_empty() => format!("{}/{}", ns, path),
+        _ => path.to_string(),
+    }
+}

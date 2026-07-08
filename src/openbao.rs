@@ -4,7 +4,7 @@ use serde_json::Value;
 use tracing::{trace, warn};
 
 use crate::error::{AppError, Result};
-use crate::key_storage::KeyStorageProvider;
+use crate::key_storage::{KeyStorageMultiProvider, KeyStorageProvider};
 
 mod tests;
 
@@ -12,6 +12,7 @@ mod tests;
 pub struct OpenBaoClient {
     base: String,
     mount: String,
+    namespace: String,
     token: String,
     client: reqwest::Client,
 }
@@ -42,13 +43,26 @@ struct WriteRequest<'a, T> {
 }
 
 impl OpenBaoClient {
-    pub fn new(base: String, mount: String, token: String) -> Self {
+    pub fn new(base: String, mount: String, namespace: String, token: String) -> Self {
         Self {
             base,
             mount,
+            namespace,
             token,
             client: reqwest::Client::new(),
         }
+    }
+    fn at_headers(&self) -> reqwest::header::HeaderMap {
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert("X-Vault-Token", self.token.parse().unwrap());
+        headers.insert(
+            reqwest::header::ACCEPT_ENCODING,
+            "identity".parse().unwrap(),
+        );
+        if !self.namespace.is_empty() {
+            headers.insert("X-Vault-Namespace", self.namespace.parse().unwrap());
+        }
+        headers
     }
 
     pub async fn list(&self, path: &str) -> Result<Vec<String>> {
@@ -56,8 +70,7 @@ impl OpenBaoClient {
         let resp = self
             .client
             .request(reqwest::Method::from_bytes(b"LIST").expect("method"), url)
-            .header("X-Vault-Token", &self.token)
-            .header(reqwest::header::ACCEPT_ENCODING, "identity")
+            .headers(self.at_headers())
             .send()
             .await?;
         let status = resp.status();
@@ -75,8 +88,7 @@ impl OpenBaoClient {
         let resp = self
             .client
             .get(url)
-            .header("X-Vault-Token", &self.token)
-            .header(reqwest::header::ACCEPT_ENCODING, "identity")
+            .headers(self.at_headers())
             .send()
             .await?;
         let status = resp.status();
@@ -95,8 +107,7 @@ impl OpenBaoClient {
         let resp = self
             .client
             .post(url)
-            .header("X-Vault-Token", &self.token)
-            .header(reqwest::header::ACCEPT_ENCODING, "identity")
+            .headers(self.at_headers())
             .json(&req)
             .send()
             .await?;
@@ -119,6 +130,34 @@ impl KeyStorageProvider for OpenBaoClient {
 
     async fn write_secret_value(&self, path: &str, data: &Value) -> Result<()> {
         self.write_secret(path, data).await
+    }
+}
+
+mod multimap {
+    use std::collections::HashMap;
+
+    use crate::error::{AppError, Result};
+    use crate::key_storage::KeyStorageMultiProvider;
+
+    #[async_trait::async_trait]
+    impl KeyStorageMultiProvider for super::OpenBaoClient {
+        async fn list_multi(&self, path: &str, namespaces: &[String]) -> Result<Vec<String>> {
+            let mut seen = HashMap::new();
+            if namespaces.is_empty() {
+                let keys = self.list(path).await?;
+                for k in keys {
+                    seen.entry(k.clone()).or_insert(true);
+                }
+            } else {
+                for ns in namespaces {
+                    let keys = self.list(&format!("{}/{}", ns, path)).await?;
+                    for k in keys {
+                        seen.entry(k.clone()).or_insert(true);
+                    }
+                }
+            }
+            Ok(seen.into_keys().collect())
+        }
     }
 }
 

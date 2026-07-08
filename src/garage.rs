@@ -97,7 +97,10 @@ impl GarageClient {
     }
 
     pub async fn get_status(&self) -> Result<serde_json::Value> {
-        let resp = self.req(reqwest::Method::GET, "/v2/GetClusterStatus").send().await?;
+        let resp = self
+            .req(reqwest::Method::GET, "/v2/GetClusterStatus")
+            .send()
+            .await?;
         let status = resp.status();
         let body = resp.text().await.unwrap_or_default();
         ensure_success("/v2/GetClusterStatus", status, &body)?;

@@ -17,7 +17,9 @@ struct RecordedRequest {
     body: String,
 }
 
-async fn start_mock_server(responses: Vec<MockResponse>) -> (String, Arc<Mutex<Vec<RecordedRequest>>>) {
+async fn start_mock_server(
+    responses: Vec<MockResponse>,
+) -> (String, Arc<Mutex<Vec<RecordedRequest>>>) {
     let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
     let addr = listener.local_addr().expect("local_addr");
     let recorded = Arc::new(Mutex::new(Vec::<RecordedRequest>::new()));
@@ -149,15 +151,16 @@ async fn create_bucket_covers_direct_and_fallback_paths() {
     }])
     .await;
     let client_direct = GarageClient::new(base_direct, "token".to_string());
-    let direct = client_direct.create_bucket("alpha").await.expect("direct bucket");
+    let direct = client_direct
+        .create_bucket("alpha")
+        .await
+        .expect("direct bucket");
     assert_eq!(direct.id, "bucket-direct");
 
-    let (base_fallback, _) = start_mock_server(vec![
-        MockResponse {
-            status: 200,
-            body: "{\"id\":\"bucket-fallback\"}".to_string(),
-        },
-    ])
+    let (base_fallback, _) = start_mock_server(vec![MockResponse {
+        status: 200,
+        body: "{\"id\":\"bucket-fallback\"}".to_string(),
+    }])
     .await;
     let client_fallback = GarageClient::new(base_fallback, "token".to_string());
     let fallback = client_fallback
@@ -179,7 +182,9 @@ async fn create_bucket_covers_direct_and_fallback_paths() {
     .await;
     let client_missing = GarageClient::new(base_missing, "token".to_string());
     let missing = client_missing.create_bucket("gamma").await;
-    assert!(matches!(missing, Err(AppError::Resource(msg)) if msg.contains("lookup by alias failed")));
+    assert!(
+        matches!(missing, Err(AppError::Resource(msg)) if msg.contains("lookup by alias failed"))
+    );
 }
 
 #[tokio::test]
@@ -221,7 +226,10 @@ async fn create_key_lookup_and_allow_bucket_key() {
     let reqs = requests.lock().await;
     let req = reqs.first().expect("recorded request");
     assert!(req.start_line.contains("POST /v2/AllowBucketKey HTTP/1.1"));
-    assert!(req.headers.to_lowercase().contains("authorization: bearer token-123"));
+    assert!(req
+        .headers
+        .to_lowercase()
+        .contains("authorization: bearer token-123"));
     assert!(req.body.contains("\"bucketId\":\"bucket-x\""));
     assert!(req.body.contains("\"accessKeyId\":\"key-x\""));
     assert!(req.body.contains("\"read\":true"));
