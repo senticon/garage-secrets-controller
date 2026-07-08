@@ -28,6 +28,7 @@ struct CreateBucketRequest<'a> {
 pub struct GarageKey {
     pub access_key_id: String,
     #[serde(default)]
+    #[allow(dead_code)]
     pub name: Option<String>,
     #[serde(default)]
     pub secret_access_key: Option<String>,
@@ -37,6 +38,7 @@ pub struct GarageKey {
 pub enum KeyLookup {
     None,
     Single(GarageKey),
+    #[allow(dead_code)]
     Multiple,
 }
 

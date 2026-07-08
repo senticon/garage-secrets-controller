@@ -1,4 +1,5 @@
 use super::*;
+#[allow(unused_imports)]
 use serde::Deserialize;
 use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -6,18 +7,21 @@ use tokio::net::TcpListener;
 use tokio::sync::Mutex;
 
 #[derive(Clone)]
+#[allow(dead_code)]
 struct MockResponse {
     status: u16,
     body: String,
 }
 
 #[derive(Clone)]
+#[allow(dead_code)]
 struct RecordedRequest {
     start_line: String,
     headers: String,
     body: String,
 }
 
+#[allow(dead_code)]
 async fn start_mock_server(
     responses: Vec<MockResponse>,
 ) -> (String, Arc<Mutex<Vec<RecordedRequest>>>) {
@@ -98,6 +102,7 @@ async fn start_mock_server(
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct Demo {
     name: String,
 }

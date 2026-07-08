@@ -11,6 +11,25 @@ permissions:
   packages: write
 
 jobs:
+  lint:
+    name: Lint (zero warnings + formatting)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          toolchain: nightly-2025-03-10
+          components: rustfmt
+
+      - name: Check formatting
+        run: cargo fmt --check
+
+      - name: Check clippy (deny warnings)
+        run: cargo clippy --tests -- -D warnings
+
   build:
     name: Build Docker image
     runs-on: ubuntu-latest
@@ -33,7 +52,7 @@ jobs:
   test:
     name: Execute Rust tests inside Docker image
     runs-on: ubuntu-latest
-    needs: build
+    needs: [lint, build]
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -52,7 +71,7 @@ jobs:
 
   rust-coverage:
     name: Rust coverage
-    needs: build
+    needs: [lint, build]
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
