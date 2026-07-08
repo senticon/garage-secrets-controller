@@ -22,7 +22,7 @@ jobs:
         uses: dtolnay/rust-toolchain@nightly
         with:
           toolchain: nightly-2025-03-10
-          components: rustfmt
+          components: rustfmt, clippy
 
       - name: Check formatting
         run: cargo fmt --check
