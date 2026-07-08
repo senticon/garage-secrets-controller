@@ -27,7 +27,7 @@ done
 garage_status() {
   curl -fsS \
     -H "Authorization: Bearer ${GARAGE_ADMIN_TOKEN}" \
-    "${GARAGE_ADMIN_URL}/v1/status"
+    "${GARAGE_ADMIN_URL}/v2/GetClusterHealth"
 }
 
 wait_admin() {
@@ -59,7 +59,7 @@ wait_bucket_api() {
   deadline=$(( $(date +%s) + TIMEOUT_SECONDS ))
   until curl -fsS \
     -H "Authorization: Bearer ${GARAGE_ADMIN_TOKEN}" \
-    "${GARAGE_ADMIN_URL}/v1/bucket?search=__healthcheck__" >/dev/null 2>&1; do
+    "${GARAGE_ADMIN_URL}/health" >/dev/null 2>&1; do
     if [ "$(date +%s)" -ge "$deadline" ]; then
       echo "Garage bucket API is still unhealthy" >&2
       garage_status | jq . >&2 || true
@@ -70,10 +70,10 @@ wait_bucket_api() {
 }
 
 recreate_resources() {
-  echo "Recreate mode: removing existing Garage bucket/key resources"
+  echo "Cleaning up stale keys/buckets"
 
   local key_ids
-  key_ids="$(docker compose exec -T "${SERVICE_NAME}" /garage key list 2>/dev/null | awk -v key_name="${KEY_NAME}" '$1 ~ /^GK/ && $2 == key_name { print $1 }')"
+  key_ids="$(docker compose exec -T "${SERVICE_NAME}" /garage key list 2>/dev/null | awk -v key_name="${KEY_NAME}" '$1 ~ /^GK/ && $3 == key_name { print $1 }')"
   if [ -n "${key_ids}" ]; then
     while IFS= read -r key_id; do
       [ -z "${key_id}" ] && continue
@@ -95,13 +95,13 @@ EOF
 }
 
 echo "Initializing Garage with defaults: zone=${ZONE}, capacity=${CAPACITY}, timeout=${TIMEOUT_SECONDS}s"
-wait_admin
+#wait_admin
 bootstrap_layout
 wait_bucket_api
 
-if [ "${RECREATE}" = "true" ]; then
-  recreate_resources
-fi
+# Always clean up stale keys/buckets before proceeding so that lookups return single
+# results and the reconciler can create fresh resources cleanly.
+recreate_resources
 
 echo "Garage initialized and healthy"
 garage_status | jq .
