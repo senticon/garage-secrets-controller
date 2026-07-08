@@ -337,9 +337,6 @@ impl<K: KeyStorageProvider + KeyStorageMultiProvider + Clone, G: GarageApi + Clo
 #[cfg(test)]
 mod tests;
 
-fn all_path(namespaces: &[String], path: &str) -> String {
-    match namespaces.first() {
-        Some(ns) if !ns.is_empty() => format!("{}/{}", ns, path),
-        _ => path.to_string(),
-    }
+fn all_path(_namespaces: &[String], path: &str) -> String {
+    path.to_string()
 }

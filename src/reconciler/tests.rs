@@ -64,11 +64,11 @@ impl KeyStorageMultiProvider for MockKeyStore {
             }
         } else {
             for ns in namespaces {
-                let namespaced = format!("{}/{}", ns, path);
-                if let Some(msg) = inner.list_errors.get(&namespaced) {
+                if let Some(msg) = inner.list_errors.get(path) {
                     return Err(AppError::Resource(msg.clone()));
                 }
-                if let Some(found) = inner.list_map.get(&namespaced) {
+                let lookup_path = format!("{}/{}", ns, path);
+                if let Some(found) = inner.list_map.get(&lookup_path) {
                     for k in found {
                         keys.insert(k.clone(), true);
                     }
@@ -1112,13 +1112,13 @@ async fn multi_namespace_empty_list_returns_root() {
 }
 
 #[tokio::test]
-async fn all_path_prefix_named_namespace() {
+async fn all_path_ignores_namespace_returns_original_path() {
     let paths = super::all_path(&["custo-ns".to_string()], "garage/buckets/my-bucket");
-    assert_eq!(paths, "custo-ns/garage/buckets/my-bucket");
+    assert_eq!(paths, "garage/buckets/my-bucket");
 }
 
 #[tokio::test]
-async fn all_path_empty_namespace_original_path() {
+async fn all_path_empty_namespace_returns_original_path() {
     let paths = super::all_path(&[], "garage/buckets/my-bucket");
     assert_eq!(paths, "garage/buckets/my-bucket");
 }

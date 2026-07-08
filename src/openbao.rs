@@ -150,7 +150,13 @@ mod multimap {
                 }
             } else {
                 for ns in namespaces {
-                    let keys = self.list(&format!("{}/{}", ns, path)).await?;
+                    let client_with_ns = super::OpenBaoClient::new(
+                        self.base.clone(),
+                        self.mount.clone(),
+                        ns.clone(),
+                        self.token.clone(),
+                    );
+                    let keys = client_with_ns.list(path).await?;
                     for k in keys {
                         seen.entry(k.clone()).or_insert(true);
                     }
