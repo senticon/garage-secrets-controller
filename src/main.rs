@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+mod build_info;
 mod config;
 mod error;
 mod garage;
@@ -22,20 +23,37 @@ async fn main() -> Result<()> {
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .init();
 
+    build_info::log_version_info();
+
     let cfg = Config::parse();
     validate_config(&cfg)?;
+
+    let namespaces: Vec<String> =
+        if !cfg.bao_namespace.is_empty() && cfg.bao_namespace.contains(',') {
+            cfg.bao_namespace
+                .split(',')
+                .filter(|s| !s.is_empty())
+                .map(String::from)
+                .collect()
+        } else if !cfg.bao_namespace.is_empty() {
+            vec![cfg.bao_namespace.clone()]
+        } else {
+            Vec::new()
+        };
 
     let reconciler = Reconciler {
         key_store: openbao::OpenBaoClient::new(
             cfg.bao_addr.clone(),
             cfg.bao_kv_mount.clone(),
+            cfg.bao_namespace.clone(),
             cfg.bao_token.clone(),
         ),
         garage: garage::GarageClient::new(
             cfg.garage_admin_url.clone(),
             cfg.garage_admin_token.clone(),
         ),
-        prefix: cfg.bao_prefix.clone(),
+        bao_prefix: cfg.bao_prefix.clone(),
+        namespaces,
         dry_run: cfg.dry_run,
     };
 
@@ -47,9 +65,11 @@ async fn main() -> Result<()> {
 
     let interval = Duration::from_secs(cfg.poll_interval_seconds);
     loop {
+        info!("starting reconciliation");
         if let Err(err) = reconciler.reconcile_once().await {
             error!(error = %err, "reconciliation loop failed");
         }
+        info!("reconciliation completed");
         tokio::time::sleep(interval).await;
     }
 }

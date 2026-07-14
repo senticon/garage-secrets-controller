@@ -29,6 +29,7 @@ services:
       BAO_TOKEN: root
       BAO_KV_MOUNT: kv
       BAO_PREFIX: garage
+      BAO_NAMESPACE: ""
       GARAGE_ADMIN_URL: http://garage:3903
       GARAGE_ADMIN_TOKEN: dev-garage-admin-token
       POLL_INTERVAL_SECONDS: "10"

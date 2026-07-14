@@ -2,6 +2,7 @@ export BAO_ADDR=http://127.0.0.1:8200
 export BAO_TOKEN=root
 export BAO_KV_MOUNT=kv
 export BAO_PREFIX=garage
+export BAO_NAMESPACE=
 export GARAGE_ADMIN_URL=http://127.0.0.1:3903
 export GARAGE_ADMIN_TOKEN=dev-garage-admin-token
 export POLL_INTERVAL_SECONDS=30

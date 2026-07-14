@@ -1,7 +1,14 @@
 FROM rust:1.87-bookworm AS base
 WORKDIR /app
+ARG GSC_GIT_HASH
+ARG GSC_VERSION
+ARG GSC_PR_NUMBER
+ENV GSC_GIT_HASH=${GSC_GIT_HASH}
+ENV GSC_VERSION=${GSC_VERSION}
+ENV GSC_PR_NUMBER=${GSC_PR_NUMBER}
 
 COPY Cargo.toml Cargo.lock ./
+COPY build.rs ./
 COPY src ./src
 
 FROM base AS builder

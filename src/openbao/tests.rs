@@ -1,3 +1,5 @@
+// Suppressed: wide imports from parent module used across test functions.
+#[allow(unused_imports)]
 use super::*;
 use serde::Deserialize;
 use std::sync::Arc;
@@ -6,19 +8,27 @@ use tokio::net::TcpListener;
 use tokio::sync::Mutex;
 
 #[derive(Clone)]
+// Suppressed: structurally required in Vec<MockResponse> for every mock fixture.
+#[allow(dead_code)]
 struct MockResponse {
     status: u16,
     body: String,
 }
 
 #[derive(Clone)]
+// Suppressed: captured in RecordedRequest and used in request assertions.
+#[allow(dead_code)]
 struct RecordedRequest {
     start_line: String,
     headers: String,
     body: String,
 }
 
-async fn start_mock_server(responses: Vec<MockResponse>) -> (String, Arc<Mutex<Vec<RecordedRequest>>>) {
+// Suppressed: spawns async threads; clippy cannot see body in check mode.
+#[allow(dead_code)]
+async fn start_mock_server(
+    responses: Vec<MockResponse>,
+) -> (String, Arc<Mutex<Vec<RecordedRequest>>>) {
     let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
     let addr = listener.local_addr().expect("addr");
     let recorded = Arc::new(Mutex::new(Vec::<RecordedRequest>::new()));
@@ -96,6 +106,8 @@ async fn start_mock_server(responses: Vec<MockResponse>) -> (String, Arc<Mutex<V
 }
 
 #[derive(Debug, Deserialize)]
+// Suppressed: used as a generic parameter in deserialize tests; the type is reference-only.
+#[allow(dead_code)]
 struct Demo {
     name: String,
 }
@@ -121,24 +133,35 @@ async fn list_covers_success_not_found_and_error() {
         body: r#"{"data":{"keys":["a/","b/"]}}"#.to_string(),
     }])
     .await;
-    let client_ok = OpenBaoClient::new(base_ok, "secret".to_string(), "token-1".to_string());
+    let client_ok = OpenBaoClient::new(
+        base_ok,
+        "secret".to_string(),
+        "".to_string(),
+        "token-1".to_string(),
+    );
     let keys = client_ok.list("apps").await.expect("list ok");
     assert_eq!(keys, vec!["a/", "b/"]);
     let reqs = reqs_ok.lock().await;
     let req = reqs.first().expect("request");
-    assert!(req.start_line.contains("LIST /v1/secret/metadata/apps HTTP/1.1"));
-    assert!(
-        req.headers
-            .to_lowercase()
-            .contains("x-vault-token: token-1")
-    );
+    assert!(req
+        .start_line
+        .contains("LIST /v1/secret/metadata/apps HTTP/1.1"));
+    assert!(req
+        .headers
+        .to_lowercase()
+        .contains("x-vault-token: token-1"));
 
     let (base_nf, _) = start_mock_server(vec![MockResponse {
         status: 404,
         body: "missing".to_string(),
     }])
     .await;
-    let client_nf = OpenBaoClient::new(base_nf, "secret".to_string(), "token-2".to_string());
+    let client_nf = OpenBaoClient::new(
+        base_nf,
+        "secret".to_string(),
+        "".to_string(),
+        "token-2".to_string(),
+    );
     let empty = client_nf.list("apps").await.expect("not found handled");
     assert!(empty.is_empty());
 
@@ -147,7 +170,12 @@ async fn list_covers_success_not_found_and_error() {
         body: "boom".to_string(),
     }])
     .await;
-    let client_err = OpenBaoClient::new(base_err, "secret".to_string(), "token-3".to_string());
+    let client_err = OpenBaoClient::new(
+        base_err,
+        "secret".to_string(),
+        "".to_string(),
+        "token-3".to_string(),
+    );
     match client_err.list("apps").await.expect_err("list err") {
         AppError::OpenBaoApi { status, message } => {
             assert_eq!(status, 500);
@@ -164,19 +192,31 @@ async fn read_secret_covers_success_not_found_and_error() {
         body: r#"{"data":{"data":{"name":"alice"}}}"#.to_string(),
     }])
     .await;
-    let client_ok = OpenBaoClient::new(base_ok, "secret".to_string(), "token-a".to_string());
+    let client_ok = OpenBaoClient::new(
+        base_ok,
+        "secret".to_string(),
+        "".to_string(),
+        "token-a".to_string(),
+    );
     let found: Option<Demo> = client_ok.read_secret("users/alice").await.expect("read ok");
     assert_eq!(found.expect("value").name, "alice");
     let reqs = reqs_ok.lock().await;
     let req = reqs.first().expect("request");
-    assert!(req.start_line.contains("GET /v1/secret/data/users/alice HTTP/1.1"));
+    assert!(req
+        .start_line
+        .contains("GET /v1/secret/data/users/alice HTTP/1.1"));
 
     let (base_nf, _) = start_mock_server(vec![MockResponse {
         status: 404,
         body: "missing".to_string(),
     }])
     .await;
-    let client_nf = OpenBaoClient::new(base_nf, "secret".to_string(), "token-b".to_string());
+    let client_nf = OpenBaoClient::new(
+        base_nf,
+        "secret".to_string(),
+        "".to_string(),
+        "token-b".to_string(),
+    );
     let none: Option<Demo> = client_nf.read_secret("users/missing").await.expect("none");
     assert!(none.is_none());
 
@@ -185,7 +225,12 @@ async fn read_secret_covers_success_not_found_and_error() {
         body: "denied".to_string(),
     }])
     .await;
-    let client_err = OpenBaoClient::new(base_err, "secret".to_string(), "token-c".to_string());
+    let client_err = OpenBaoClient::new(
+        base_err,
+        "secret".to_string(),
+        "".to_string(),
+        "token-c".to_string(),
+    );
     match client_err
         .read_secret::<Demo>("users/alice")
         .await
@@ -206,7 +251,12 @@ async fn write_secret_covers_success_and_error() {
         body: "{}".to_string(),
     }])
     .await;
-    let client_ok = OpenBaoClient::new(base_ok, "secret".to_string(), "token-z".to_string());
+    let client_ok = OpenBaoClient::new(
+        base_ok,
+        "secret".to_string(),
+        "".to_string(),
+        "token-z".to_string(),
+    );
     let payload = serde_json::json!({"access":"granted"});
     client_ok
         .write_secret("apps/demo", &payload)
@@ -214,12 +264,13 @@ async fn write_secret_covers_success_and_error() {
         .expect("write ok");
     let reqs = reqs_ok.lock().await;
     let req = reqs.first().expect("request");
-    assert!(req.start_line.contains("POST /v1/secret/data/apps/demo HTTP/1.1"));
-    assert!(
-        req.headers
-            .to_lowercase()
-            .contains("x-vault-token: token-z")
-    );
+    assert!(req
+        .start_line
+        .contains("POST /v1/secret/data/apps/demo HTTP/1.1"));
+    assert!(req
+        .headers
+        .to_lowercase()
+        .contains("x-vault-token: token-z"));
     assert!(req.body.contains("\"data\":{\"access\":\"granted\"}"));
 
     let (base_err, _) = start_mock_server(vec![MockResponse {
@@ -227,7 +278,93 @@ async fn write_secret_covers_success_and_error() {
         body: "bad request".to_string(),
     }])
     .await;
-    let client_err = OpenBaoClient::new(base_err, "secret".to_string(), "token-y".to_string());
+    let client_err = OpenBaoClient::new(
+        base_err,
+        "secret".to_string(),
+        "ns-err".to_string(),
+        "token-y".to_string(),
+    );
     let err = client_err.write_secret("apps/demo", &payload).await;
     assert!(matches!(err, Err(AppError::OpenBaoApi { status: 400, .. })));
+}
+
+#[tokio::test]
+async fn list_sends_namespace_header_when_set() {
+    let (base, reqs) = start_mock_server(vec![MockResponse {
+        status: 200,
+        body: r#"{"data":{"keys":["a/"]}}"#.to_string(),
+    }])
+    .await;
+    let client = OpenBaoClient::new(
+        base,
+        "secret".to_string(),
+        "custo".to_string(),
+        "t".to_string(),
+    );
+    client.list("p").await.expect("ok");
+    let reqs = reqs.lock().await;
+    let req = reqs.first().expect("req");
+    assert!(req
+        .headers
+        .to_lowercase()
+        .contains("x-vault-namespace: custo"));
+    assert!(req.headers.to_lowercase().contains("x-vault-token: t"));
+}
+
+#[tokio::test]
+async fn read_sends_namespace_header_when_set() {
+    let (base, reqs) = start_mock_server(vec![MockResponse {
+        status: 200,
+        body: r#"{"data":{"data":{}}}"#.to_string(),
+    }])
+    .await;
+    let client = OpenBaoClient::new(
+        base,
+        "secret".to_string(),
+        "the_ns".to_string(),
+        "tk".to_string(),
+    );
+    client.read_secret::<Value>("p").await.expect("ok");
+    let reqs = reqs.lock().await;
+    let req = reqs.first().expect("req");
+    assert!(req
+        .headers
+        .to_lowercase()
+        .contains("x-vault-namespace: the_ns"));
+}
+
+#[tokio::test]
+async fn write_sends_namespace_header_when_set() {
+    let (base, reqs) = start_mock_server(vec![MockResponse {
+        status: 200,
+        body: "{}".to_string(),
+    }])
+    .await;
+    let client = OpenBaoClient::new(
+        base,
+        "secret".to_string(),
+        "ns".to_string(),
+        "tok".to_string(),
+    );
+    client
+        .write_secret("p", &serde_json::json!({}))
+        .await
+        .expect("ok");
+    let reqs = reqs.lock().await;
+    let req = reqs.first().expect("req");
+    assert!(req.headers.to_lowercase().contains("x-vault-namespace: ns"));
+}
+
+#[tokio::test]
+async fn no_namespace_header_when_empty() {
+    let (base, reqs) = start_mock_server(vec![MockResponse {
+        status: 200,
+        body: r#"{"data":{"keys":["a/"]}}"#.to_string(),
+    }])
+    .await;
+    let client = OpenBaoClient::new(base, "secret".to_string(), "".to_string(), "t".to_string());
+    client.list("p").await.expect("ok");
+    let reqs = reqs.lock().await;
+    let req = reqs.first().expect("req");
+    assert!(!req.headers.to_lowercase().contains("x-vault-namespace"));
 }

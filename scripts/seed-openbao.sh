@@ -3,6 +3,7 @@ set -euo pipefail
 
 export BAO_ADDR="${BAO_ADDR:-http://127.0.0.1:8200}"
 export BAO_TOKEN="${BAO_TOKEN:-root}"
+export BAO_NAMESPACE="${BAO_NAMESPACE:-}"
 
 PREFIX="${BAO_PREFIX:-garage}"
 BUCKET_NAME="${GARAGE_BUCKET_NAME:-my-bucket}"
@@ -23,29 +24,72 @@ while [ "$#" -gt 0 ]; do
   shift
 done
 
-if [ "${RECREATE}" = "true" ]; then
-  echo "Recreate mode: deleting existing OpenBao KV records"
-  bao kv metadata delete "kv/${PREFIX}/grants/${GRANT_NAME}" >/dev/null 2>&1 || true
-  bao kv metadata delete "kv/${PREFIX}/keys/${KEY_NAME}" >/dev/null 2>&1 || true
-  bao kv metadata delete "kv/${PREFIX}/buckets/${BUCKET_NAME}" >/dev/null 2>&1 || true
+# Determine which namespaces to target
+ns_list=()
+if [ -z "${BAO_NAMESPACE}" ]; then
+  ns_list=("_" "test")
+else
+  ns_list=("${BAO_NAMESPACE}")
 fi
 
-bao kv put "kv/${PREFIX}/buckets/${BUCKET_NAME}" \
-  name="${BUCKET_NAME}" \
-  state=requested
+ensure_namespace_kv() {
+  local ns="$1"
+  local ns_flag=""
+  if [ -n "${ns}" ] && [ "${ns}" != "_" ]; then
+    ns_flag="-namespace=${ns}"
+  fi
 
-bao kv put "kv/${PREFIX}/keys/${KEY_NAME}" \
-  name="${KEY_NAME}" \
-  access_key_id= \
-  secret_access_key= \
-  state=requested
+  if ! bao secrets list -format=json ${ns_flag} 2>/dev/null | jq -e '."kv/"' >/dev/null 2>&1; then
+    echo "Creating KV engine in ${ns:-root} namespace"
+    bao secrets enable -path=kv -namespace="${ns}" kv-v2 >/dev/null 2>&1
+  fi
+}
 
-bao kv put "kv/${PREFIX}/grants/${GRANT_NAME}" \
-  key="${KEY_NAME}" \
-  bucket="${BUCKET_NAME}" \
-  read=true \
-  write=true \
-  owner=false \
-  state=requested
+seed_ns() {
+  local ns="$1"
+  local ns_flag=""
+  if [ -n "${ns}" ] && [ "${ns}" != "_" ]; then
+    ns_flag="-namespace=${ns}"
+  fi
 
-echo "Seeded desired records"
+  ensure_namespace_kv "${ns}"
+
+  if [ "${RECREATE}" = "true" ]; then
+    rm -f /dev/null
+    echo "Recreate mode: deleting existing OpenBao KV records in ${ns:-root} namespace"
+    bao kv metadata delete "kv/${PREFIX}/grants/${GRANT_NAME}" ${ns_flag} >/dev/null 2>&1 || true
+    bao kv metadata delete "kv/${PREFIX}/keys/${KEY_NAME}" ${ns_flag} >/dev/null 2>&1 || true
+    bao kv metadata delete "kv/${PREFIX}/buckets/${BUCKET_NAME}" ${ns_flag} >/dev/null 2>&1 || true
+  fi
+
+  local kv_path="kv/${PREFIX}/buckets/${BUCKET_NAME}"
+  bao kv put ${ns_flag} "${kv_path}" \
+    name="${BUCKET_NAME}" \
+    state=requested
+
+  kv_path="kv/${PREFIX}/keys/${KEY_NAME}"
+  bao kv put ${ns_flag} "${kv_path}" \
+    name="${KEY_NAME}" \
+    access_key_id= \
+    secret_access_key= \
+    state=requested
+
+  kv_path="kv/${PREFIX}/grants/${GRANT_NAME}"
+  bao kv put ${ns_flag} "${kv_path}" \
+    key="${KEY_NAME}" \
+    bucket="${BUCKET_NAME}" \
+    read=true \
+    write=true \
+    owner=false \
+    state=requested
+}
+
+# Ensure root KV engine exists
+ensure_namespace_kv "_"
+
+echo "Seeding desired records"
+for ns in "${ns_list[@]}"; do
+  seed_ns "${ns}"
+done
+
+echo "Seeded desired records in all target namespaces"

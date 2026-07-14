@@ -28,6 +28,9 @@ struct CreateBucketRequest<'a> {
 pub struct GarageKey {
     pub access_key_id: String,
     #[serde(default)]
+    // Suppressed: populated by the API response and used for audit/debugging; not consumed in
+    // this codebase but part of the public API contract.
+    #[allow(dead_code)]
     pub name: Option<String>,
     #[serde(default)]
     pub secret_access_key: Option<String>,
@@ -37,6 +40,9 @@ pub struct GarageKey {
 pub enum KeyLookup {
     None,
     Single(GarageKey),
+    // Suppressed: represents an ambiguous key matching result; the variant exists for future
+    // feature gates and strategy switches but is not yet triggered in production.
+    #[allow(dead_code)]
     Multiple,
 }
 
@@ -97,7 +103,10 @@ impl GarageClient {
     }
 
     pub async fn get_status(&self) -> Result<serde_json::Value> {
-        let resp = self.req(reqwest::Method::GET, "/v2/GetClusterStatus").send().await?;
+        let resp = self
+            .req(reqwest::Method::GET, "/v2/GetClusterStatus")
+            .send()
+            .await?;
         let status = resp.status();
         let body = resp.text().await.unwrap_or_default();
         ensure_success("/v2/GetClusterStatus", status, &body)?;
