@@ -1,7 +1,7 @@
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tracing::{trace, warn};
+use tracing::{trace, warn, info, debug};
 
 use crate::error::{AppError, Result};
 use crate::key_storage::KeyStorageProvider;
@@ -66,6 +66,7 @@ impl OpenBaoClient {
     }
 
     pub async fn list(&self, path: &str) -> Result<Vec<String>> {
+        debug!("Listing metadata for {} at mount {}", path, self.mount);
         let url = format!("{}/v1/{}/metadata/{}", self.base, self.mount, path);
         let resp = self
             .client
@@ -84,6 +85,7 @@ impl OpenBaoClient {
     }
 
     pub async fn read_secret<T: DeserializeOwned>(&self, path: &str) -> Result<Option<T>> {
+        debug!("Reading secret {} at mount {}", path, self.mount);
         let url = format!("{}/v1/{}/data/{}", self.base, self.mount, path);
         let resp = self
             .client
@@ -102,6 +104,7 @@ impl OpenBaoClient {
     }
 
     pub async fn write_secret<T: Serialize>(&self, path: &str, data: &T) -> Result<()> {
+        debug!("Writing secret {} at mount {}", path, self.mount);
         let url = format!("{}/v1/{}/data/{}", self.base, self.mount, path);
         let req = WriteRequest { data };
         let resp = self

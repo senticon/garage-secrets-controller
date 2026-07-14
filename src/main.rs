@@ -62,9 +62,11 @@ async fn main() -> Result<()> {
 
     let interval = Duration::from_secs(cfg.poll_interval_seconds);
     loop {
+        info!("starting reconciliation");
         if let Err(err) = reconciler.reconcile_once().await {
             error!(error = %err, "reconciliation loop failed");
         }
+        info!("reconciliation completed");
         tokio::time::sleep(interval).await;
     }
 }
