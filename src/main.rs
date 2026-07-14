@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+mod build_info;
 mod config;
 mod error;
 mod garage;
@@ -21,6 +22,8 @@ async fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .init();
+
+    build_info::log_version_info();
 
     let cfg = Config::parse();
     validate_config(&cfg)?;

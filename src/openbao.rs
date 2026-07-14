@@ -1,7 +1,7 @@
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tracing::{trace, warn, info, debug};
+use tracing::{debug, trace, warn};
 
 use crate::error::{AppError, Result};
 use crate::key_storage::KeyStorageProvider;

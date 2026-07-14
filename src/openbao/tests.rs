@@ -1,6 +1,6 @@
 // Suppressed: wide imports from parent module used across test functions.
-use super::*;
 #[allow(unused_imports)]
+use super::*;
 use serde::Deserialize;
 use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
